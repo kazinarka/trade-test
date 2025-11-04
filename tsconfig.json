@@ -1,0 +1,29 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "rootDir": "src",
+    "outDir": "dist",
+    "declaration": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "noEmitOnError": true
+  },
+  "include": [
+    "src/index.ts",
+    "src/builder.ts",
+    "src/trader.ts",
+    "src/helpers/constants.ts",
+    "src/helpers/price.ts",
+    "src/helpers/program-ids.ts",
+    "src/markets/boop-fun/client.ts",
+    "src/markets/heaven-xyz/client.ts"
+  ],
+  "exclude": ["node_modules", "dist"]
+}
+
+

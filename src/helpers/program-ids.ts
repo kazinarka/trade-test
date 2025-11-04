@@ -1,0 +1,4 @@
+export const PROGRAM_IDS = {
+	HEAVEN_PROGRAM_ID: "HEAVENoP2qxoeuF8Dj2oT1GHEnu49U5mJYkdeC8BAX2o",
+  BOOP_FUN_PROGRAM_ID: "boop8hVGQGqehUK2iVEMEnMrL5RbjywRzHKBmBE7ry4"
+} as const;
