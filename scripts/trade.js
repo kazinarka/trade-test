@@ -22,8 +22,11 @@
     RPC_URL=... (optional)
 */
 
-const { Keypair, PublicKey } = require('@solana/web3.js');
+const { Keypair, PublicKey, Connection } = require('@solana/web3.js');
 const bs58 = require('bs58');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 const { TradeTest } = require('../dist');
 const { markets: Markets, swapDirection: SwapDirection } = require('../dist/helpers/constants');
 
@@ -51,10 +54,41 @@ function parseBool(v) {
   return s === 'true' || s === '1' || s === 'yes' || s === 'y';
 }
 
+function expandHome(p) {
+  if (!p) return p;
+  if (p.startsWith('~')) return path.join(os.homedir(), p.slice(1));
+  return p;
+}
+
+function loadKeypairFromFile(maybePath) {
+  const defaultPath = path.join(os.homedir(), '.config', 'solana', 'id.json');
+  const filePath = expandHome(maybePath || defaultPath);
+  const raw = fs.readFileSync(filePath, 'utf8');
+  const secret = Uint8Array.from(JSON.parse(raw));
+  return Keypair.fromSecretKey(secret);
+}
+
+async function printErrorDetails(err, rpcUrl) {
+  try {
+    if (err && typeof err.getLogs === 'function') {
+      const conn = new Connection(rpcUrl, 'confirmed');
+      const logs = await err.getLogs(conn).catch(() => undefined);
+      if (logs) {
+        console.error(JSON.stringify({ mode: 'send-error-logs', logs }));
+        return;
+      }
+    }
+    if (err && err.logs) {
+      console.error(JSON.stringify({ mode: 'send-error-logs', logs: err.logs }));
+      return;
+    }
+  } catch (_) {}
+}
+
 (async () => {
   try {
     const args = parseArgs(process.argv);
-    const required = ['market', 'direction', 'mint', 'amount', 'slippage', 'private-key'];
+    const required = ['market', 'direction', 'mint', 'amount', 'slippage'];
     for (const r of required) {
       if (!(r in args)) throw new Error(`Missing required arg --${r}`);
     }
@@ -75,8 +109,17 @@ function parseBool(v) {
       throw new Error('market must be BOOP_FUN or HEAVEN');
     }
 
-    const wallet = Keypair.fromSecretKey(bs58.decode(args['private-key']));
-    const trade = new TradeTest(process.env.RPC_URL || undefined);
+    // Wallet: prefer --private-key (base58), else --keypair path, else default ~/.config/solana/id.json
+    let wallet;
+    if (args['private-key']) {
+      wallet = Keypair.fromSecretKey(bs58.decode(args['private-key']));
+    } else {
+      wallet = loadKeypairFromFile(args['keypair']);
+    }
+
+    // RPC: prefer --rpc-url, then env, else default to http://127.0.0.1:8899 for localnet
+    const rpcUrl = args['rpc-url'] || process.env.RPC_URL || 'http://127.0.0.1:8899';
+    const trade = new TradeTest(rpcUrl);
 
     // Optional: print price quote
     if (wantQuote) {
@@ -113,13 +156,25 @@ function parseBool(v) {
     }
 
     if (direction === SwapDirection.BUY) {
-      const sig = await trade.buy({ market, wallet, mint, amount, slippage, priorityFeeSol, poolAddress });
-      console.log(sig);
+      try {
+        const sig = await trade.buy({ market, wallet, mint, amount, slippage, priorityFeeSol, poolAddress });
+        console.log(sig);
+      } catch (e) {
+        await printErrorDetails(e, rpcUrl);
+        console.error(e?.message || e);
+        process.exit(1);
+      }
       return;
     }
     if (direction === SwapDirection.SELL) {
-      const sig = await trade.sell({ market, wallet, mint, amount, slippage, priorityFeeSol, poolAddress });
-      console.log(sig);
+      try {
+        const sig = await trade.sell({ market, wallet, mint, amount, slippage, priorityFeeSol, poolAddress });
+        console.log(sig);
+      } catch (e) {
+        await printErrorDetails(e, rpcUrl);
+        console.error(e?.message || e);
+        process.exit(1);
+      }
       return;
     }
 
